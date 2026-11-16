@@ -11,6 +11,10 @@ const app = new App({
 
 const onboardingDB = {};
 
+// Time Constants (Testing ke liye aap inhein adjust kar sakte hain)
+const ONE_HOUR = 60 * 60 * 1000;
+const THIRTY_MINUTES = 30 * 60 * 1000;
+
 // 1. HR Slash Command - HR fills only Name, Dept, and Team Leader
 app.command('/onboard', async ({ ack, body, client }) => {
   await ack();
@@ -130,30 +134,31 @@ app.view('hr_onboard_modal', async ({ ack, body, view, client }) => {
   }
 });
 
-// 3. Cron Job: Runs every hour to check pending forms and send exact reminders
+// 3. Cron Job: Runs every minute to check pending forms and send reminders
 cron.schedule('* * * * *', async () => {
   const now = Date.now();
-  const ONE_HOUR = 60 * 60 * 1000;
 
   for (const recordId in onboardingDB) {
     const record = onboardingDB[recordId];
 
     if (record.status === 'PENDING_TL') {
-      const hoursPassed = (now - record.createdAt) / ONE_HOUR;
+      const timePassed = now - record.createdAt;
 
-      // 6 Hours Reminder check
-      if (hoursPassed >= 6 && !record.reminder6hSent) {
+      // Testing ke liye yahan time adjust kiya ja sakta hai (Maslan: 30 minutes = THIRTY_MINUTES)
+      // Original 6 hours check: timePassed >= (6 * ONE_HOUR)
+      // Testing ke liye aap ise chhota kar sakti hain, e.g., THIRTY_MINUTES
+      if (timePassed >= THIRTY_MINUTES && !record.reminder6hSent) {
         try {
           await app.client.chat.postMessage({
             token: process.env.SLACK_BOT_TOKEN,
             channel: record.teamLeadId,
-            text: `⏳ *Reminder (6h):* Please complete the onboarding details for *${record.fullName}* (${record.dept}).`,
+            text: `⏳ *Reminder:* Please complete the onboarding details for *${record.fullName}* (${record.dept}).`,
             blocks: [
               {
                 type: 'section',
                 text: {
                   type: 'mrkdwn',
-                  text: `⏳ *6-Hour Onboarding Reminder*\n\nThis is a gentle reminder to fill out the remaining onboarding details for *${record.fullName}*.`
+                  text: `⏳ *Onboarding Reminder*\n\nThis is a reminder to fill out the remaining onboarding details for *${record.fullName}*.`
                 }
               },
               {
@@ -171,19 +176,19 @@ cron.schedule('* * * * *', async () => {
             ]
           });
           record.reminder6hSent = true;
-          console.log(`6-hour cron reminder sent for: ${record.fullName}`);
+          console.log(`Cron reminder sent for: ${record.fullName}`);
         } catch (err) {
-          console.error('Error sending 6h cron reminder:', err);
+          console.error('Error sending cron reminder:', err);
         }
       }
 
-      // 24 Hours Urgent Reminder check
-      if (hoursPassed >= 24 && !record.reminder24hSent) {
+      // 24 Hours Urgent Reminder check (Ya test ke liye 1 hour)
+      if (timePassed >= (24 * ONE_HOUR) && !record.reminder24hSent) {
         try {
           await app.client.chat.postMessage({
             token: process.env.SLACK_BOT_TOKEN,
             channel: record.teamLeadId,
-            text: `⏰ *Urgent Reminder (24h):* Onboarding for *${record.fullName}* is still pending!`,
+            text: `⏰ *Urgent Reminder:* Onboarding for *${record.fullName}* is still pending!`,
             blocks: [
               {
                 type: 'section',
