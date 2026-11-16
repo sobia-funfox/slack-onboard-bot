@@ -11,9 +11,8 @@ const app = new App({
 
 const onboardingDB = {};
 
-// Time Constants (Testing ke liye aap inhein adjust kar sakte hain)
+// Production Time Constant (1 Hour in milliseconds)
 const ONE_HOUR = 60 * 60 * 1000;
-const THIRTY_MINUTES = 30 * 60 * 1000;
 
 // 1. HR Slash Command - HR fills only Name, Dept, and Team Leader
 app.command('/onboard', async ({ ack, body, client }) => {
@@ -60,7 +59,6 @@ app.command('/onboard', async ({ ack, body, client }) => {
               action_id: 'tl_select',
               placeholder: { type: 'plain_text', text: 'Select Team Leader' },
               options: [
-                { text: { type: 'plain_text', text: 'Sobia Mateen' }, value: 'U0BMA619H0B' },
                 { text: { type: 'plain_text', text: 'Nasreen' }, value: 'U062DJ39N69' },
                 { text: { type: 'plain_text', text: 'Ambreen' }, value: 'U062V5XTB5X' },
                 { text: { type: 'plain_text', text: 'Eman' }, value: 'U062GKM4WAE' },
@@ -134,7 +132,7 @@ app.view('hr_onboard_modal', async ({ ack, body, view, client }) => {
   }
 });
 
-// 3. Cron Job: Runs every minute to check pending forms and send reminders
+// 3. Cron Job: Checks pending forms every minute and sends 6-hour & 24-hour reminders
 cron.schedule('* * * * *', async () => {
   const now = Date.now();
 
@@ -144,21 +142,19 @@ cron.schedule('* * * * *', async () => {
     if (record.status === 'PENDING_TL') {
       const timePassed = now - record.createdAt;
 
-      // Testing ke liye yahan time adjust kiya ja sakta hai (Maslan: 30 minutes = THIRTY_MINUTES)
-      // Original 6 hours check: timePassed >= (6 * ONE_HOUR)
-      // Testing ke liye aap ise chhota kar sakti hain, e.g., THIRTY_MINUTES
-      if (timePassed >= THIRTY_MINUTES && !record.reminder6hSent) {
+      // 6 Hours Reminder check
+      if (timePassed >= (6 * ONE_HOUR) && !record.reminder6hSent) {
         try {
           await app.client.chat.postMessage({
             token: process.env.SLACK_BOT_TOKEN,
             channel: record.teamLeadId,
-            text: `⏳ *Reminder:* Please complete the onboarding details for *${record.fullName}* (${record.dept}).`,
+            text: `⏳ *Reminder (6h):* Please complete the onboarding details for *${record.fullName}* (${record.dept}).`,
             blocks: [
               {
                 type: 'section',
                 text: {
                   type: 'mrkdwn',
-                  text: `⏳ *Onboarding Reminder*\n\nThis is a reminder to fill out the remaining onboarding details for *${record.fullName}*.`
+                  text: `⏳ *6-Hour Onboarding Reminder*\n\nThis is a gentle reminder to fill out the remaining onboarding details for *${record.fullName}*.`
                 }
               },
               {
@@ -176,19 +172,19 @@ cron.schedule('* * * * *', async () => {
             ]
           });
           record.reminder6hSent = true;
-          console.log(`Cron reminder sent for: ${record.fullName}`);
+          console.log(`6-hour cron reminder sent for: ${record.fullName}`);
         } catch (err) {
-          console.error('Error sending cron reminder:', err);
+          console.error('Error sending 6h cron reminder:', err);
         }
       }
 
-      // 24 Hours Urgent Reminder check (Ya test ke liye 1 hour)
+      // 24 Hours Urgent Reminder check
       if (timePassed >= (24 * ONE_HOUR) && !record.reminder24hSent) {
         try {
           await app.client.chat.postMessage({
             token: process.env.SLACK_BOT_TOKEN,
             channel: record.teamLeadId,
-            text: `⏰ *Urgent Reminder:* Onboarding for *${record.fullName}* is still pending!`,
+            text: `⏰ *Urgent Reminder (24h):* Onboarding for *${record.fullName}* is still pending!`,
             blocks: [
               {
                 type: 'section',
@@ -386,5 +382,5 @@ app.view('tl_onboard_modal', async ({ ack, body, view, client }) => {
 
 (async () => {
   await app.start();
-  console.log('⚡️ Slack Onboarding App is running with Cron-based Reminders!');
+  console.log('⚡️ Slack Onboarding App is running in Production Mode!');
 })();
